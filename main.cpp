@@ -16,10 +16,14 @@ path operator""_p(const char* data, std::size_t sz) {
 }
 
 // напишите эту функцию
-bool MyFunc(const path& in_file, ofstream& file_, const vector<path>& include_directories){
+
+bool Preprocess(const path& in_file, const path& out_file, const vector<path>& include_directories){
     
     ifstream fout(in_file.string());
     if(!fout.is_open()) return false;
+
+    ofstream file_(out_file.string(), std::ios::app);
+    if(!file_.is_open()) return false;
 
     static regex incl_reg1("\\s*#\\s*include\\s*\"([^\"]*)\"\\s*");
     static regex incl_reg2("\\s*#\\s*include\\s*<([^>]*)>\\s*");
@@ -43,7 +47,7 @@ bool MyFunc(const path& in_file, ofstream& file_, const vector<path>& include_di
                     ifstream sup_f(p.string());
                     if(sup_f){
                         
-                        if(!MyFunc(p, file_, include_directories))
+                        if(!Preprocess(p, out_file, include_directories))
                             return false;
                         
                         is_found = true;
@@ -64,7 +68,7 @@ bool MyFunc(const path& in_file, ofstream& file_, const vector<path>& include_di
 
                     if(sup_f){
                         
-                        if(!MyFunc(d, file_, include_directories))
+                        if(!Preprocess(d, out_file, include_directories))
                             return false;
                         is_found = true;
                         emplaced = true;
@@ -91,7 +95,7 @@ bool MyFunc(const path& in_file, ofstream& file_, const vector<path>& include_di
 
                 if(sup_f){
                     
-                    if(!MyFunc(d, file_, include_directories))
+                    if(!Preprocess(d, out_file, include_directories))
                             return false;
                     
                     is_found = true;
@@ -105,22 +109,10 @@ bool MyFunc(const path& in_file, ofstream& file_, const vector<path>& include_di
                 return false;
             }
         }
-        if(!emplaced) file_ << s << "\n";
+        if(!emplaced) file_ << s << endl;
         string_number++;
     }
     return true;
-}
-
-bool Preprocess(const path& in_file, const path& out_file, const vector<path>& include_directories){
-    
-    ifstream fout(in_file.string());
-    if(!fout.is_open()) return false;
-
-    
-    ofstream file_(out_file.string());
-    if(!file_.is_open()) return false;
-
-    return MyFunc(in_file, file_, include_directories);
 }
 
 string GetFileContents(string file) {
