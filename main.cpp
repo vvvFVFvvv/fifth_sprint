@@ -12,108 +12,83 @@ using namespace std;
 using filesystem::path;
 
 path operator""_p(const char* data, std::size_t sz) {
+
     return path(data, data + sz);
+
 }
 
-// напишите эту функцию
+void PrintError(const string& current, const string& next, int number_string) {
 
-bool Preprocess(const path& in_file, const path& out_file, const vector<path>& include_directories){
-    
-    ifstream fout(in_file.string());
-    if(!fout.is_open()) return false;
+    cout << "unknown include file "s << current << " at file "s << next << " at line "s << number_string << endl;
 
-    ofstream file_(out_file.string(), std::ios::app);
-    if(!file_.is_open()) return false;
+}
 
-    static regex incl_reg1("\\s*#\\s*include\\s*\"([^\"]*)\"\\s*");
-    static regex incl_reg2("\\s*#\\s*include\\s*<([^>]*)>\\s*");
-    smatch m;
+bool Preprocess_stream(istream& input, ostream& output, const path& file_name, const vector<path>& include_directories) {
 
-    string s;
-    int string_number = 1;
-    while(getline(fout, s)){
-        bool emplaced = false; 
+    static regex local_match (R"/(\s*#\s*include\s*"([^"]*)"\s*)/");
+    static regex global_match (R"/(\s*#\s*include\s*<([^>]*)>\s*)/");
+    int string_counter = 0;
+    string str;
+    smatch matched_local, matched_global;
 
-        if(std::regex_search(s, m, incl_reg1)){
-            bool is_found = false;
-            for(const auto& dir_entry : filesystem::directory_iterator(in_file.parent_path())){
-                string sup_str1 = string(m[1]);
-                string sup_str2 = dir_entry.path().filename().string();
+    while( getline( input, str ) ) {
 
-                if(sup_str1.find(sup_str2) != string::npos && sup_str1.at(0) == sup_str2.at(0)){
-                   
-                    path p = in_file.parent_path() / sup_str1;
+        string_counter++;
 
-                    ifstream sup_f(p.string());
-                    if(sup_f){
-                        
-                        if(!Preprocess(p, out_file, include_directories))
-                            return false;
-                        
-                        is_found = true;
-                        emplaced = true;
+        if (!regex_match(str, matched_local, local_match) && !regex_match(str, matched_global, global_match)) {
+            output << str << endl;
+        }
+
+        else {
+            ifstream in;
+            path relative_path;
+            path absolute_path;
+
+            if (!matched_local.empty()) {
+                relative_path = string(matched_local[1]);
+                absolute_path = file_name.parent_path() / relative_path;
+                in.open(absolute_path.string(), ios::in);
+            }
+            else {
+
+                relative_path = string(matched_global[1]);
+
+            }
+
+            for (auto& file: include_directories) {
+
+                if (in.is_open()) {
                         break;
-                    }
                 }
+
+                absolute_path = file / relative_path;
+                in.open(absolute_path.string(), ios::in);
             }
 
-            if(!is_found){ 
-                string sup_str1 = string(m[1]);
-            
-                path p = sup_str1;
-                for(const path& el : include_directories){
-                    path d = el / p;
-                
-                    ifstream sup_f(d.string());
-
-                    if(sup_f){
-                        
-                        if(!Preprocess(d, out_file, include_directories))
-                            return false;
-                        is_found = true;
-                        emplaced = true;
-                        break;
-                    }
-                }
-                if(!is_found){ 
-                    cout <<"unknown include file "s << string(m[1]) << " at file "s << in_file.string()<< " at line "s << string_number << endl;
-                    return false;
-                }
-            }
-        } 
-
-        if(std::regex_search(s, m, incl_reg2)){
-            bool is_found = false;
-
-            string sup_str1 = string(m[1]);
-            
-            path p = sup_str1;
-            for(const path& el : include_directories){
-                path d = el / p;
-                
-                ifstream sup_f(d.string());
-
-                if(sup_f){
-                    
-                    if(!Preprocess(d, out_file, include_directories))
-                            return false;
-                    
-                    is_found = true;
-                    emplaced = true;
-                    break;
-                }
-                
-            }
-            if(!is_found){
-                cout <<"unknown include file "s << string(m[1]) << " at file "s << in_file.string()<< " at line "s << string_number << endl;
+            if (!in) {
+                PrintError(absolute_path.filename().string(), file_name.string(), string_counter);
                 return false;
             }
+
+        Preprocess_stream(in, output, absolute_path.string(), include_directories);
         }
-        if(!emplaced) file_ << s << endl;
-        string_number++;
     }
+
     return true;
 }
+    
+// напишите эту функцию
+bool Preprocess(const path& in_file, const path& out_file, const vector<path>& include_directories){
+
+    ifstream file_in(in_file.string(), ios::in);
+    if (!file_in) return false;
+
+    ofstream file_out(out_file.string(), ios::out);
+    if (!file_out) return false;
+
+    return Preprocess_stream(file_in, file_out, in_file, include_directories);
+}
+
 
 string GetFileContents(string file) {
     ifstream stream(file);
